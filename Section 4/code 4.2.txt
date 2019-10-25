@@ -1,0 +1,54 @@
+import org.apache.flink.util._
+
+
+//innerjoin of the 2 datasets
+val innerJoin = taxesColumns.join(populationsColumns).where(0).equalTo(0)
+innerJoin.first(5).print()
+
+//extract state, taxrate and population from the joined dataset
+val stateRatePop = innerJoin.map(x => (x._1._1, x._1._2, x._2._3))
+stateRatePop.first(5).print()
+
+//add up population per state
+stateRatePop.groupBy(0).sum(2).first(5).print()
+
+val lojoin = taxesColumns.leftOuterJoin(populationsColumns).where(0).equalTo(0) {(x,y) => (if (y==null) (x._1,x._2, 0, 0) else (x._1, x._2, y._2.toInt, y._3.toInt))}
+
+lojoin.first(2).print()
+
+lojoin.filter(_._4 == 0).first(2).print()
+
+
+val rojoin = taxesColumns.rightOuterJoin(populationsColumns).where(0).equalTo(0) {(x,y) => (if (x==null) (y._1, 0, y._2.toInt, y._3.toInt) else (x._1, x._2, y._2.toInt, y._3.toInt))}
+
+rojoin.first(2).print()
+
+rojoin.filter(_._2 == 0).first(2).print()
+
+
+val fojoin = taxesColumns.fullOuterJoin(populationsColumns).where(0).equalTo(0) {(x,y) => (if (x==null) (y._1, 0, y._2.toInt, y._3.toInt) else if (y==null) (x._1,x._2, 0, 0) else (x._1, x._2, y._2.toInt, y._3.toInt))}
+
+fojoin.first(2).print()
+
+fojoin.filter(_._2 == 0).first(2).print()
+
+
+val lajoin = taxesColumns.leftOuterJoin(populationsColumns).where(0).equalTo(0) {(x,y) => (if (y==null) (x._1,x._2) else (None, None))}.filter(_._1 != None)
+
+lajoin.first(2).print()
+
+
+val lsjoin = taxesColumns.leftOuterJoin(populationsColumns).where(0).equalTo(0) {(x,y) => (if (y==null) (None, None) else (x._1,x._2) )}.filter(_._1 != None)
+
+lsjoin.first(2).print()
+
+
+val crossjoin = taxesColumns.cross(populationsColumns){(x,y) => (x,y)}
+
+crossjoin.first(2).print()
+
+
+val crossjoin = taxesColumns.cross(populationsColumns){(x,y) => if (x._1 == y._1) (x._1,y._1,x._2,y._2.toInt, y._3.toInt) else (None, None, None, None, None)}.filter(_._1 != None)
+
+crossjoin.first(2).print()
+

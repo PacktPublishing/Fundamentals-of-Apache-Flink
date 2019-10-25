@@ -1,0 +1,26 @@
+
+
+import org.apache.flink.runtime.state.filesystem._
+import org.apache.flink.streaming.api._
+senv.setStateBackend(new FsStateBackend("file:///work/data/checkpoints"))
+senv.enableCheckpointing(1000)
+senv.getCheckpointConfig.setCheckpointingMode(CheckpointingMode.EXACTLY_ONCE)
+senv.getCheckpointConfig.setMinPauseBetweenCheckpoints(500)
+
+// Data type for words with count
+case class WordWithCount(word: String, count: Long)
+// get input data by connecting to the socket
+val text = senv.socketTextStream("127.0.0.1", 9000, '\n')
+// parse the data, group it, window it, and aggregate the counts
+val windowCounts = text
+.flatMap { w => w.split("\\s") }
+.map { w => WordWithCount(w, 1) }
+.keyBy("word")
+.timeWindow(Time.seconds(5), Time.seconds(1))
+.sum("count")
+// print the results with a single thread, rather than in parallel
+windowCounts.print().setParallelism(1)
+senv.execute("Socket Window WordCount")
+
+
+

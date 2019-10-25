@@ -1,0 +1,10 @@
+//reading csv 
+val dataSet = benv.readTextFile("/work/data/OnlineRetail.csv")
+dataSet.count()
+dataSet.first(5).print()
+
+val splitData = dataSet.map(line => (line.split(",")(2).trim(), line.split(",")(3).trim()))
+splitData.first(5).print()
+
+splitData.writeAsCsv("file:///work/data/out1.csv")
+benv.execute()

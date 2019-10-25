@@ -1,0 +1,228 @@
+
+
+import org.apache.flink.api.common.serialization.SimpleStringEncoder
+import org.apache.flink.core.fs.Path
+import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink
+
+val outputPath = "file:///work/data/output1"
+
+val sink: StreamingFileSink[String] = StreamingFileSink
+    .forRowFormat(new Path(outputPath), new SimpleStringEncoder[String]("UTF-8"))
+    .build()
+// Data type for words with count
+case class WordWithCount(word: String, count: Long)
+// get input data by connecting to the socket
+val text = senv.socketTextStream("127.0.0.1", 9000, '\n')
+// parse the data, group it, window it, and aggregate the counts
+val windowCounts = text
+.flatMap { w => w.split("\\s") }
+.map { w => WordWithCount(w, 1) }
+.keyBy("word")
+.timeWindow(Time.seconds(5), Time.seconds(1))
+.sum("count")
+// print the results with a single thread, rather than in parallel
+windowCounts.print().setParallelism(1)
+text.addSink(sink)
+
+senv.execute("Socket Window WordCount")
+
+
+
+
+
+
+
+// Data type for words with count
+case class WordWithCount(word: String, count: Long)
+// get input data by connecting to the socket
+val text = senv.socketTextStream("127.0.0.1", 9000, '\n')
+val text2 = senv.socketTextStream("127.0.0.1", 9001, '\n')
+// parse the data, group it, window it, and aggregate the counts
+val aStream = text
+.flatMap { w => w.split("\\s") }
+.map { w => WordWithCount(w, 1) }
+.keyBy("word")
+.timeWindow(Time.seconds(5), Time.seconds(1))
+.sum("count")
+
+val bStream = text2
+.flatMap { w => w.split("\\s") }
+.map { w => WordWithCount(w, 1) }
+.keyBy("word")
+.timeWindow(Time.seconds(5), Time.seconds(1))
+.sum("count")
+
+
+aStream.print().setParallelism(1)
+bStream.print().setParallelism(1)
+
+senv.execute("Socket Window WordCount")
+
+
+
+
+
+import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.windowing.assigners._
+import org.apache.flink.streaming.api.functions.timestamps._
+
+case class WordTimeStampCount(word: String, label: String, timestamp: Long, count: Long)
+senv.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+
+class TimestampAssigner extends AscendingTimestampExtractor[WordTimeStampCount] {
+	override def extractAscendingTimestamp(input: WordTimeStampCount): Long = {
+		return input.timestamp;
+	}
+}
+
+val text1 = senv.socketTextStream("127.0.0.1", 9000, '\n')
+val text2 = senv.socketTextStream("127.0.0.1", 9001, '\n')
+
+val aStream = text1
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "astream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val bStream = text2
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "bstream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val output1 = aStream.keyBy("word")
+			.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+			.sum("count")
+
+val output2 = bStream.keyBy("word")
+			.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+			.sum("count")
+
+
+output1.print().setParallelism(1)
+output2.print().setParallelism(1)
+
+val joined = output1.join(output2)
+			.where(_.word)
+			.equalTo(_.word)
+			.window(TumblingEventTimeWindows.of(Time.seconds(5)))
+			.apply{ (w1, w2) => WordTimeStampCount(w1.word, "jstream", System.currentTimeMillis(), w1.count + w2.count)}
+
+joined.print().setParallelism(1)
+
+senv.execute("Socket Window WordCount")
+
+
+
+
+
+
+import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.windowing.assigners._
+import org.apache.flink.streaming.api.functions.timestamps._
+
+case class WordTimeStampCount(word: String, label: String, timestamp: Long, count: Long)
+senv.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+
+class TimestampAssigner extends AscendingTimestampExtractor[WordTimeStampCount] {
+	override def extractAscendingTimestamp(input: WordTimeStampCount): Long = {
+		return input.timestamp;
+	}
+}
+
+val text1 = senv.socketTextStream("127.0.0.1", 9000, '\n')
+val text2 = senv.socketTextStream("127.0.0.1", 9001, '\n')
+
+val aStream = text1
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "astream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val bStream = text2
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "bstream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val output1 = aStream.keyBy("word")
+			.window(SlidingEventTimeWindows.of(Time.seconds(5), Time.seconds(1)))
+			.sum("count")
+
+val output2 = bStream.keyBy("word")
+			.window(SlidingEventTimeWindows.of(Time.seconds(5), Time.seconds(1)))
+			.sum("count")
+
+
+output1.print().setParallelism(1)
+output2.print().setParallelism(1)
+
+val joined = output1.join(output2)
+			.where(_.word)
+			.equalTo(_.word)
+			.window(SlidingEventTimeWindows.of(Time.seconds(5), Time.seconds(1)))
+			.apply{ (w1, w2) => WordTimeStampCount(w1.word, "jstream", System.currentTimeMillis(), w1.count + w2.count)}
+
+joined.print().setParallelism(1)
+
+senv.execute("Socket Window WordCount")
+
+
+
+
+
+
+import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.windowing.assigners._
+import org.apache.flink.streaming.api.functions.timestamps._
+
+case class WordTimeStampCount(word: String, label: String, timestamp: Long, count: Long)
+senv.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+
+class TimestampAssigner extends AscendingTimestampExtractor[WordTimeStampCount] {
+	override def extractAscendingTimestamp(input: WordTimeStampCount): Long = {
+		return input.timestamp;
+	}
+}
+
+val text1 = senv.socketTextStream("127.0.0.1", 9000, '\n')
+val text2 = senv.socketTextStream("127.0.0.1", 9001, '\n')
+
+val aStream = text1
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "astream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val bStream = text2
+.flatMap { w => w.split("\\s") }
+.map { w => WordTimeStampCount(w, "bstream", System.currentTimeMillis(), 1) }
+.assignTimestampsAndWatermarks(new TimestampAssigner())
+
+
+val output1 = aStream.keyBy("word")
+			.window(EventTimeSessionWindows.withGap(Time.seconds(5)))
+			.sum("count")
+
+val output2 = bStream.keyBy("word")
+			.window(EventTimeSessionWindows.withGap(Time.seconds(5)))
+			.sum("count")
+
+
+output1.print().setParallelism(1)
+output2.print().setParallelism(1)
+
+val joined = output1.join(output2)
+			.where(_.word)
+			.equalTo(_.word)
+			.window(EventTimeSessionWindows.withGap(Time.seconds(5)))
+			.apply{ (w1, w2) => WordTimeStampCount(w1.word, "jstream", System.currentTimeMillis(), w1.count + w2.count)}
+
+joined.print().setParallelism(1)
+
+senv.execute("Socket Window WordCount")
+
+
+
+
+

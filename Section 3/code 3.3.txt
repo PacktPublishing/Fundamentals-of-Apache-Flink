@@ -1,0 +1,42 @@
+//reading csv 
+val dataSet = benv.readTextFile("/work/data/OnlineRetail.csv")
+dataSet.count()
+dataSet.first(5).print()
+
+//remove header by filtering out the first line
+val noHeader = dataSet.filter(!_.startsWith("InvoiceNo"))
+noHeader.first(5).print()
+
+val goodrecords = noHeader.filter(line => line.split(",").length ==8)
+goodrecords.count()
+
+val errors = noHeader.filter(line => line.split(",").length !=8)
+errors.count()
+errors.first(5).print()
+
+//show Description and quantity columns
+val splitData = goodrecords.map(line => (line.split(",")(2).trim(), line.split(",")(3).trim().toInt))
+splitData.first(5).print()
+
+
+
+splitData.map(x => (x._1,x._2)).groupBy(0).sum(1).first(5).print()
+
+
+
+val mpDataSet = splitData.mapPartition{ in => in.map{(_,1)} }
+mpDataSet.first(5).print()
+
+
+
+splitData.distinct.count()
+
+splitData.minBy(1).print()
+
+splitData.maxBy(1).print()
+
+splitData.rebalance()
+
+val both = goodrecords.union(errors)
+both.count()
+

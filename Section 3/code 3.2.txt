@@ -1,0 +1,55 @@
+//reading csv 
+val dataSet = benv.readTextFile("/work/data/OnlineRetail.csv")
+dataSet.count()
+dataSet.first(5).print()
+
+val splitData = dataSet.map(line => (line.split(",")(2).trim(), line.split(",")(3).trim()))
+splitData.first(5).print()
+
+splitData.writeAsCsv("file:///work/data/out1.csv")
+benv.execute()
+
+
+//remove header by filtering out the first line
+val noHeader = dataSet.filter(!_.startsWith("InvoiceNo"))
+noHeader.first(5).print()
+
+//show Description column
+val splitData = noHeader.map(line => line.split(",")(2))
+splitData.first(5).print()
+
+//flatmap
+val splitData = noHeader.flatMap(line => line.split(","))
+splitData.first(5).print()
+
+//show quantity column
+val splitData = noHeader.map(line => line.split(",")(3))
+splitData.first(5).print()
+
+val goodrecords = noHeader.filter(line => line.split(",").length ==8)
+goodrecords.count()
+
+val errors = noHeader.filter(line => line.split(",").length !=8)
+errors.count()
+errors.first(5).print()
+
+//show Description and quantity columns
+val splitData = goodrecords.map(line => (line.split(",")(2).trim(), line.split(",")(3).trim().toInt))
+splitData.first(5).print()
+
+
+
+
+splitData.map(x => (x._1,x._2)).groupBy(0).sum(1).first(5).print()
+
+
+scala> val mpDataSet = splitData.mapPartition{ in => in.map{(_,1)} }
+mpDataSet: org.apache.flink.api.scala.DataSet[((String, Int), Int)] = org.apache.flink.api.scala.DataSet@6b5d10cd
+
+scala> mpDataSet.first(5).print()
+((WHITE HANGING HEART T-LIGHT HOLDER,6),1)
+((WHITE METAL LANTERN,6),1)
+((CREAM CUPID HEARTS COAT HANGER,8),1)
+((KNITTED UNION FLAG HOT WATER BOTTLE,6),1)
+((RED WOOLLY HOTTIE WHITE HEART.,6),1)
+

@@ -1,0 +1,51 @@
+
+
+#Partitioning
+
+
+val dataSet = benv.readTextFile("/work/data/OnlineRetail.csv")
+
+val goodrecords = dataSet.filter(!_.startsWith("InvoiceNo")).filter(line => line.split(",").length ==8)
+goodrecords.count()
+
+//show Description and quantity columns
+val splitData = goodrecords.map(line => (line.split(",")(2).trim(), line.split(",")(3).trim().toInt))
+splitData.first(5).print()
+
+
+
+splitData.getParallelism
+splitData.setParallelism(-1)
+
+val repar = splitData.partitionByHash(0).mapPartition{in => in.map{(_,1)}}
+
+
+splitData.partitionByHash(0).setParallelism(5).countElementsPerPartition.collect
+splitData.setParallelism(5).countElementsPerPartition.collect
+
+splitData.getParallelism
+splitData.setParallelism(-1)
+
+val repar = splitData.partitionByRange(0).mapPartition{in => in.map{(_,1)}}
+splitData.partitionByRange(0).setParallelism(5).countElementsPerPartition.collect
+splitData.setParallelism(5).countElementsPerPartition.collect
+
+
+splitData.getParallelism
+splitData.setParallelism(-1)
+
+class mypartitioner extends Partitioner[String]{ def partition(s: String, i: Int): Int = {return math.abs(s.hashCode%5)}}
+val repar = splitData.partitionCustom(new mypartitioner,0).mapPartition{in => in.map{(_,1)}}
+
+splitData.partitionCustom(new mypartitioner,0).setParallelism(5).countElementsPerPartition.collect
+splitData.setParallelism(5).countElementsPerPartition.collect
+
+
+splitData.getParallelism
+splitData.setParallelism(-1)
+
+val repar = splitData.sortPartition(1, Order.ASCENDING).mapPartition {in => in.map{(_,1)}}
+
+splitData.sortPartition(1, Order.ASCENDING).setParallelism(5).countElementsPerPartition.collect
+
+splitData.setParallelism(5).countElementsPerPartition.collect

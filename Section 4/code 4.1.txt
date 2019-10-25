@@ -1,0 +1,71 @@
+import org.apache.flink.util._
+
+
+
+val taxes = benv.readTextFile("/work/data/statesTaxRates.csv")
+taxes.count()
+taxes.first(5).print()
+
+
+val taxesColumns = taxes.filter(!_.startsWith("State")).map(line => (line.split(",")(0).trim(), line.split(",")(1).trim().toFloat))
+taxesColumns.first(5).print()
+
+val populations = benv.readTextFile("/work/data/statesPopulation.csv")
+populations.count()
+populations.first(5).print()
+
+
+val populationsColumns = populations.filter(!_.startsWith("State")).map(line => (line.split(",")(0).trim(), line.split(",")(1).trim().toInt, line.split(",")(2).trim().toLong))
+populationsColumns.first(5).print()
+
+#reduce
+
+val reduce1 = populationsColumns.groupBy(0).reduce(new ReduceFunction[(String, Int, Long)] {
+      override def reduce(intermediateResult: (String, Int, Long), next: (String, Int, Long)): (String, Int, Long) = {
+        (intermediateResult._1,intermediateResult._2, intermediateResult._3 + next._3)
+      }
+    })
+reduce1.first(5).print()
+
+#reduceGroup
+
+
+val groupreduce1 = populationsColumns.groupBy(0).reduceGroup(new GroupReduceFunction[(String, Int, Long), (String, Int, Long)] {
+      override def reduce(iterable: java.lang.Iterable[(String, Int, Long)], collector: Collector[(String, Int, Long)]): Unit = {
+        var sum = 0L
+        var state =""
+        var year = 0
+        val itor = iterable.iterator
+        while (itor.hasNext) {
+          val t = itor.next()
+          state = t._1
+          year = t._2
+          sum += t._3
+        }
+        collector.collect(state, year, sum)
+      }
+    })
+ 
+groupreduce1.first(5).print()
+
+populationsColumns.groupBy(0).sum(2).first(5).print()
+populationsColumns.filter(_._1 == "Alabama").sum(2).first(5).print()
+populationsColumns.filter(_._1 == "Alabama").min(2).first(5).print()
+populationsColumns.filter(_._1 == "Alabama").max(2).first(5).print()
+
+
+val cogroup = taxesColumns.coGroup(populationsColumns).where(0).equalTo(0){new CoGroupFunction[(String, Float), (String, Int, Long), (String, Float, Long)] { override def coGroup(left: java.lang.Iterable[(String, Float)], right: java.lang.Iterable[(String, Int, Long)], collector: Collector[(String, Float, Long)]): Unit = { 
+	var state = ""; var sum = 0L; var tax = 0.0f
+	val ritor = right.iterator
+    while (ritor.hasNext) {
+    	val t = ritor.next()
+    	state = t._1
+    	sum += t._3 }
+	val litor = left.iterator
+	if (litor.hasNext) {
+		val t = litor.next()
+		state = t._1
+		tax = t._2 }
+	collector.collect((state, tax, sum) ) }}}
+
+cogroup.first(5).print()
